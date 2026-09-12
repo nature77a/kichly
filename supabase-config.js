@@ -3,7 +3,7 @@
 // Used by every page (homepage, product page, checkout, dashboard)
 // ==========================================
 
-const SUPABASE_URL = "https://treedxtwfwxzklksrmni.supabase.co";
+const SUPABASE_URL = "https://treedxtwfwxkzlksrmni.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_LAbUNMSO0mEHHE7FLlXtqw_K0bZ8ZRj";
 
 // Creates one shared client instance. Requires the Supabase JS library
