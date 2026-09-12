@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Orders — Kitchly Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  html, body { margin:0; padding:0; font-family:"Plus Jakarta Sans", sans-serif; background:#f7f5f2; }
+  ::-webkit-scrollbar { display:none; }
+</style>
+</head>
+<body class="min-h-screen flex text-[#1b1c1a]">
+
+<aside class="w-64 shrink-0 bg-white border-r border-[#e4e2df] flex flex-col min-h-screen" id="sidebarContainer"></aside>
+
+<main class="flex-1 p-6 lg:p-10 max-w-6xl">
+  <h1 class="text-2xl font-semibold mb-1">Orders</h1>
+  <p class="text-sm text-[#59413c] mb-5">Every order placed on your store.</p>
+
+  <div class="flex items-center gap-3 flex-wrap mb-4">
+    <input id="searchInput" type="text" placeholder="Search by name or phone…"
+      class="h-11 px-4 rounded-xl border border-[#e0bfb8] text-sm w-64"/>
+    <div id="statusTabs" class="flex gap-2 flex-wrap"></div>
+  </div>
+
+  <div id="ordersList" class="flex flex-col gap-2"></div>
+</main>
+
+<!-- Order Detail Modal -->
+<div id="orderModalOverlay" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+    <div class="p-5 border-b border-[#e4e2df] flex items-center justify-between sticky top-0 bg-white">
+      <h2 class="font-semibold text-lg">Order Details</h2>
+      <button onclick="closeModal()" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#efeeea]">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="orderModalBody" class="p-5"></div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="sidebar.js"></script>
+<script>
+const STATUS_LIST = ["pending", "confirmed", "delivered", "rejected", "returned"];
+const STATUS_META = {
+  pending:   { dot: "bg-orange-500", label: "Pending",   badge: "bg-orange-100 text-orange-700" },
+  confirmed: { dot: "bg-blue-500",   label: "Confirmed", badge: "bg-blue-100 text-blue-700" },
+  delivered: { dot: "bg-green-500",  label: "Delivered", badge: "bg-green-100 text-green-700" },
+  rejected:  { dot: "bg-red-500",    label: "Rejected",  badge: "bg-red-100 text-red-700" },
+  returned:  { dot: "bg-purple-500", label: "Returned",  badge: "bg-purple-100 text-purple-700" }
+};
+
+let allOrders = [];
+let activeStatus = "all";
+let searchTerm = "";
+let whatsappTemplate = "";
+
+function formatPKR(n) { return "Rs. " + Math.round(n).toLocaleString("en-PK"); }
+
+async function init() {
+  const session = await requireAuth();
+  if (!session) return;
+  renderSidebar("orders");
+  document.getElementById("sidebarUsername").textContent = session.user.email.split("@")[0];
+
+  buildStatusTabs();
+  await loadTemplate();
+  await loadOrders();
+
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    searchTerm = e.target.value.toLowerCase();
+    renderOrders();
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const highlightId = params.get("id");
+  if (highlightId) openOrderModal(highlightId);
+}
+
+function buildStatusTabs() {
+  const tabs = [{ key: "all", label: "All" }, ...STATUS_LIST.map(s => ({ key: s, label: STATUS_META[s].label }))];
+  const container = document.getElementById("statusTabs");
+  container.innerHTML = tabs.map(tab => `
+    <button data-status="${tab.key}" class="status-tab-btn px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+      tab.key === activeStatus ? "bg-[#1b1c1a] text-white border-[#1b1c1a]" : "bg-white text-[#1b1c1a] border-[#e4e2df]"
+    }">${tab.label}</button>
+  `).join("");
+  container.querySelectorAll(".status-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeStatus = btn.dataset.status;
+      buildStatusTabs();
+      renderOrders();
+    });
+  });
+}
+
+async function loadTemplate() {
+  const { data } = await supabaseClient.from("settings").select("whatsapp_template").eq("id", 1).single();
+  whatsappTemplate = data ? data.whatsapp_template : "";
+}
+
+async function loadOrders() {
+  const { data, error } = await supabaseClient
+    .from("orders")
+    .select("*, products(title, price, discount), cities(name), areas(name)")
+    .order("created_at", { ascending: false });
+
+  if (error) { console.error(error); return; }
+  allOrders = data || [];
+  renderOrders();
+}
+
+function renderOrders() {
+  let list = allOrders;
+  if (activeStatus !== "all") list = list.filter(o => o.status === activeStatus);
+  if (searchTerm) {
+    list = list.filter(o =>
+      o.customer_name.toLowerCase().includes(searchTerm) ||
+      o.whatsapp_number.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  const container = document.getElementById("ordersList");
+  if (list.length === 0) {
+    container.innerHTML = '<p class="text-sm text-[#59413c] py-10 text-center">No orders match this view.</p>';
+    return;
+  }
+
+  container.innerHTML = list.map(order => {
+    const status = STATUS_META[order.status] || STATUS_META.pending;
+    return `
+      <button onclick="openOrderModal('${order.id}')" class="flex items-center gap-3 bg-white rounded-xl border border-[#e4e2df] p-4 text-left hover:border-[#a93119]/40">
+        <span class="w-2.5 h-2.5 rounded-full ${status.dot} shrink-0"></span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold truncate">${order.customer_name} <span class="text-[#59413c] font-normal">• ${order.whatsapp_number}</span></p>
+          <p class="text-xs text-[#59413c] truncate">${order.products ? order.products.title : "—"} ${order.cities ? "• " + order.cities.name : ""}</p>
+        </div>
+        <span class="text-sm font-semibold shrink-0">${formatPKR(order.total_price)}</span>
+        <span class="text-xs font-semibold px-2 py-1 rounded-md shrink-0 ${status.badge}">${status.label}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+function openOrderModal(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  const finalPrice = order.products ? order.products.price * (1 - (order.products.discount || 0) / 100) : 0;
+
+  document.getElementById("orderModalBody").innerHTML = `
+    <div class="flex flex-col gap-4">
+      <div>
+        <p class="text-xs uppercase font-semibold text-[#59413c]">Customer</p>
+        <p class="font-semibold">${order.customer_name}</p>
+        <p class="text-sm text-[#59413c]">${order.whatsapp_number}</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase font-semibold text-[#59413c]">Delivery Address</p>
+        <p class="text-sm">${order.cities ? order.cities.name : ""}${order.areas ? ", " + order.areas.name : ""}</p>
+        <p class="text-sm">${order.full_address}</p>
+        ${order.landmark ? `<p class="text-sm text-[#59413c]">Landmark: ${order.landmark}</p>` : ""}
+      </div>
+      <div>
+        <p class="text-xs uppercase font-semibold text-[#59413c]">Order</p>
+        <p class="text-sm">${order.products ? order.products.title : "—"} × ${order.quantity}</p>
+        <p class="text-sm">Delivery: ${formatPKR(order.delivery_price)}</p>
+        <p class="text-sm font-semibold">Total: ${formatPKR(order.total_price)}</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase font-semibold text-[#59413c] mb-1">Status</p>
+        <select id="statusSelect" class="w-full h-11 px-3 rounded-xl border border-[#e0bfb8] text-sm">
+          ${STATUS_LIST.map(s => `<option value="${s}" ${s === order.status ? "selected" : ""}>${STATUS_META[s].label}</option>`).join("")}
+        </select>
+      </div>
+      <button onclick="saveStatus('${order.id}')" class="w-full py-3 rounded-xl bg-[#1b1c1a] text-white text-sm font-semibold">Update Status</button>
+
+      <div class="border-t border-[#e4e2df] pt-4">
+        <button onclick="convertToMessage('${order.id}')" class="w-full py-3 rounded-xl bg-[#a93119] text-white text-sm font-semibold flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px]">chat</span> Convert to WhatsApp Message
+        </button>
+        <div id="messagePreview" class="hidden mt-3 p-3 rounded-xl bg-[#efeeea] text-sm whitespace-pre-wrap"></div>
+        <button id="copyMessageBtn" onclick="copyMessage()" class="hidden mt-2 w-full py-2.5 rounded-xl border border-[#e0bfb8] text-sm font-semibold">Copy Message</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("orderModalOverlay").classList.remove("hidden");
+}
+
+function closeModal() {
+  document.getElementById("orderModalOverlay").classList.add("hidden");
+}
+
+async function saveStatus(orderId) {
+  const newStatus = document.getElementById("statusSelect").value;
+  const { error } = await supabaseClient.from("orders").update({ status: newStatus }).eq("id", orderId);
+  if (!error) {
+    await loadOrders();
+    closeModal();
+  }
+}
+
+function convertToMessage(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+  const finalPrice = order.products ? order.products.price * (1 - (order.products.discount || 0) / 100) : 0;
+  const addressFull = `${order.full_address}, ${order.areas ? order.areas.name + ", " : ""}${order.cities ? order.cities.name : ""}`;
+
+  const message = whatsappTemplate
+    .replace(/{name}/g, order.customer_name)
+    .replace(/{product}/g, order.products ? order.products.title : "")
+    .replace(/{price}/g, Math.round(order.total_price).toLocaleString("en-PK"))
+    .replace(/{address}/g, addressFull);
+
+  const preview = document.getElementById("messagePreview");
+  preview.textContent = message;
+  preview.classList.remove("hidden");
+  document.getElementById("copyMessageBtn").classList.remove("hidden");
+}
+
+function copyMessage() {
+  const text = document.getElementById("messagePreview").textContent;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById("copyMessageBtn");
+  const original = btn.textContent;
+  btn.textContent = "Copied!";
+  setTimeout(() => btn.textContent = original, 1500);
+}
+
+init();
+</script>
+</body>
+</html>

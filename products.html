@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Products — Kitchly Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  html, body { margin:0; padding:0; font-family:"Plus Jakarta Sans", sans-serif; background:#f7f5f2; }
+  ::-webkit-scrollbar { display:none; }
+</style>
+</head>
+<body class="min-h-screen flex text-[#1b1c1a]">
+
+<aside class="w-64 shrink-0 bg-white border-r border-[#e4e2df] flex flex-col min-h-screen" id="sidebarContainer"></aside>
+
+<main class="flex-1 p-6 lg:p-10 max-w-6xl">
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+    <div>
+      <h1 class="text-2xl font-semibold">Products</h1>
+      <p class="text-sm text-[#59413c]">Manage what's listed on your store.</p>
+    </div>
+    <a href="product-edit.html" class="px-5 py-3 rounded-xl bg-[#a93119] text-white text-sm font-semibold flex items-center gap-2">
+      <span class="material-symbols-outlined text-[18px]">add</span> New Product
+    </a>
+  </div>
+
+  <div id="categoryFilter" class="flex gap-2 flex-wrap mb-4"></div>
+
+  <div id="productsGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="sidebar.js"></script>
+<script>
+let allProducts = [];
+let activeCategory = "All";
+
+function formatPKR(n) { return "Rs. " + Math.round(n).toLocaleString("en-PK"); }
+
+async function init() {
+  const session = await requireAuth();
+  if (!session) return;
+  renderSidebar("products");
+  document.getElementById("sidebarUsername").textContent = session.user.email.split("@")[0];
+  await loadProducts();
+}
+
+async function loadProducts() {
+  const { data, error } = await supabaseClient
+    .from("products")
+    .select("*, product_images(image_url, sort_order)")
+    .order("created_at", { ascending: false });
+
+  if (error) { console.error(error); return; }
+  allProducts = data || [];
+  buildCategoryFilter();
+  renderGrid();
+}
+
+function buildCategoryFilter() {
+  const cats = ["All", ...new Set(allProducts.map(p => p.category).filter(Boolean))];
+  document.getElementById("categoryFilter").innerHTML = cats.map(cat => `
+    <button data-cat="${cat}" class="cat-btn px-3 py-2 rounded-xl text-sm font-semibold border ${
+      cat === activeCategory ? "bg-[#1b1c1a] text-white border-[#1b1c1a]" : "bg-white border-[#e4e2df]"
+    }">${cat}</button>
+  `).join("");
+  document.querySelectorAll(".cat-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeCategory = btn.dataset.cat;
+      buildCategoryFilter();
+      renderGrid();
+    });
+  });
+}
+
+function renderGrid() {
+  let list = allProducts;
+  if (activeCategory !== "All") list = list.filter(p => p.category === activeCategory);
+
+  const grid = document.getElementById("productsGrid");
+  if (list.length === 0) {
+    grid.innerHTML = '<p class="text-sm text-[#59413c] col-span-full text-center py-10">No products yet.</p>';
+    return;
+  }
+
+  grid.innerHTML = list.map(p => {
+    const img = (p.product_images || []).sort((a,b) => a.sort_order - b.sort_order)[0];
+    const finalPrice = p.price * (1 - (p.discount || 0) / 100);
+    return `
+      <a href="product-edit.html?id=${p.id}" class="bg-white rounded-xl border border-[#e4e2df] overflow-hidden hover:border-[#a93119]/40">
+        <div class="w-full aspect-square bg-[#f5f3f0]">
+          <img src="${img ? img.image_url : 'https://via.placeholder.com/300'}" class="w-full h-full object-cover"/>
+        </div>
+        <div class="p-3">
+          <p class="text-sm font-semibold line-clamp-1">${p.title}</p>
+          <p class="text-xs text-[#59413c]">${p.category || "Uncategorized"}</p>
+          <p class="text-sm font-bold text-[#a93119] mt-1">${formatPKR(finalPrice)}</p>
+          ${p.is_popular ? '<span class="text-[10px] font-bold uppercase text-[#805203] bg-[#fffbff] border border-[#805203]/30 px-1.5 py-0.5 rounded mt-1 inline-block">Best Selling</span>' : ""}
+        </div>
+      </a>
+    `;
+  }).join("");
+}
+
+init();
+</script>
+</body>
+</html>
