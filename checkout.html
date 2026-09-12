@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>Checkout — Kitchly</title>
+
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          surface: "#fbf9f6",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-low": "#f5f3f0",
+          "surface-container": "#efeeea",
+          "on-surface": "#1b1c1a",
+          "on-surface-variant": "#59413c",
+          outline: "#8c716b",
+          "outline-variant": "#e0bfb8",
+          primary: "#a93119",
+          "on-primary": "#ffffff",
+          secondary: "#566250",
+          "secondary-container": "#dae7d0",
+          "on-secondary-container": "#5c6856"
+        },
+        fontFamily: { sans: ["Plus Jakarta Sans", "sans-serif"] }
+      }
+    }
+  };
+</script>
+
+<style>
+  html, body { margin:0; padding:0; background:#fbf9f6; font-family:"Plus Jakarta Sans", sans-serif; }
+  ::-webkit-scrollbar { display:none; }
+  .glass {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: 0 8px 32px -8px rgba(36,37,35,0.08);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #a93119;
+    box-shadow: 0 0 0 3px rgba(169,49,25,0.12);
+  }
+</style>
+</head>
+
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+
+<header class="sticky top-0 z-40 bg-surface/90 backdrop-blur-xl h-16 flex items-center px-4 gap-3 border-b border-outline-variant/30">
+  <a href="#" id="backLink" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container">
+    <span class="material-symbols-outlined">arrow_back</span>
+  </a>
+  <span class="font-semibold text-lg">Checkout</span>
+</header>
+
+<div id="loadingState" class="px-4 py-16 text-center text-on-surface-variant">Loading order details…</div>
+<div id="errorState" class="hidden px-4 py-20 text-center">
+  <p class="font-semibold">Something's missing</p>
+  <p class="text-sm text-on-surface-variant mt-1">This checkout link looks invalid. Please go back and try again.</p>
+  <a href="index.html" class="text-primary text-sm underline mt-3 inline-block">Back to shop</a>
+</div>
+
+<main id="checkoutContent" class="hidden max-w-5xl mx-auto px-4 pt-6 lg:grid lg:grid-cols-[1.3fr_1fr] lg:gap-8 lg:items-start">
+
+  <!-- Delivery Form -->
+  <div class="glass rounded-2xl p-5 flex flex-col gap-5">
+    <div>
+      <h2 class="font-semibold text-lg">Delivery Details</h2>
+      <p class="text-sm text-on-surface-variant">Enter where you'd like your order delivered.</p>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold uppercase text-on-surface-variant">Full Name *</label>
+      <input id="nameInput" type="text" placeholder="e.g. Zubair Ahmed"
+        class="w-full h-12 px-4 mt-1.5 rounded-xl border border-outline-variant bg-white/70 text-sm"/>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold uppercase text-on-surface-variant">WhatsApp Number *</label>
+      <input id="whatsappInput" type="tel" placeholder="03XX-XXXXXXX"
+        class="w-full h-12 px-4 mt-1.5 rounded-xl border border-outline-variant bg-white/70 text-sm"/>
+      <p class="text-[11px] text-on-surface-variant mt-1">We'll confirm your order on this number before dispatch.</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold uppercase text-on-surface-variant">City *</label>
+        <select id="citySelect" class="w-full h-12 px-3 mt-1.5 rounded-xl border border-outline-variant bg-white/70 text-sm">
+          <option value="">Select city</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold uppercase text-on-surface-variant">Area *</label>
+        <select id="areaSelect" disabled class="w-full h-12 px-3 mt-1.5 rounded-xl border border-outline-variant bg-white/70 text-sm disabled:opacity-50">
+          <option value="">Select city first</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold uppercase text-on-surface-variant">Full Street Address *</label>
+      <textarea id="addressInput" rows="2" placeholder="House #, street, block, etc."
+        class="w-full px-4 py-3 mt-1.5 rounded-xl border border-outline-variant bg-white/70 text-sm resize-none"></textarea>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold uppercase text-on-surface-variant">Nearby Landmark (optional)</label>
+      <input id="landmarkInput" type="text" placeholder="Helps the rider find you faster"
+        class="w-full h-12 px-4 mt-1.5 rounded-xl border border-outline-variant bg-white/70 text-sm"/>
+    </div>
+
+    <!-- Payment method: info only, no selection needed -->
+    <div class="rounded-xl border border-outline-variant/50 bg-secondary-container/30 p-4 flex items-center gap-3">
+      <span class="material-symbols-outlined text-secondary text-[26px]">payments</span>
+      <div>
+        <p class="text-sm font-semibold">Cash on Delivery</p>
+        <p class="text-xs text-on-surface-variant">Pay in cash when your order arrives. No advance payment needed.</p>
+      </div>
+    </div>
+
+    <p id="formError" class="hidden text-sm text-red-600 font-medium"></p>
+  </div>
+
+  <!-- Order Summary -->
+  <div class="glass rounded-2xl p-5 mt-6 lg:mt-0 flex flex-col gap-4">
+    <h2 class="font-semibold text-lg">Order Summary</h2>
+
+    <div class="flex gap-3 items-center">
+      <img id="summaryImage" class="w-16 h-16 rounded-lg object-cover bg-surface-container-low" src="" alt=""/>
+      <div class="flex-1 min-w-0">
+        <p id="summaryTitle" class="text-sm font-semibold line-clamp-1"></p>
+        <div class="flex items-center gap-2 mt-1">
+          <button id="qtyMinus" class="w-7 h-7 rounded-full border border-outline-variant flex items-center justify-center text-sm">−</button>
+          <span id="qtyValue" class="text-sm font-semibold w-4 text-center">1</span>
+          <button id="qtyPlus" class="w-7 h-7 rounded-full border border-outline-variant flex items-center justify-center text-sm">+</button>
+        </div>
+      </div>
+      <p id="summaryLinePrice" class="font-semibold text-sm shrink-0"></p>
+    </div>
+
+    <div class="border-t border-outline-variant/40 pt-3 flex flex-col gap-2 text-sm">
+      <div class="flex justify-between"><span class="text-on-surface-variant">Subtotal</span><span id="subtotalValue" class="font-medium"></span></div>
+      <div class="flex justify-between"><span class="text-on-surface-variant">Delivery</span><span id="deliveryValue" class="font-medium"></span></div>
+    </div>
+
+    <div class="border-t border-outline-variant/40 pt-3 flex justify-between items-baseline">
+      <span class="font-semibold">Total Payable</span>
+      <span id="totalValue" class="font-bold text-xl text-primary"></span>
+    </div>
+
+    <div class="rounded-xl bg-secondary-container/30 p-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-secondary text-[20px]">schedule</span>
+      <p id="deliveryTimeNote" class="text-xs text-on-secondary-container"></p>
+    </div>
+
+    <button id="completeOrderBtn" class="w-full py-4 rounded-xl bg-primary text-on-primary font-semibold flex items-center justify-center gap-2 disabled:opacity-60">
+      <span id="completeOrderText">Complete Order</span>
+      <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+    </button>
+  </div>
+
+</main>
+
+<!-- Success State -->
+<div id="successState" class="hidden fixed inset-0 bg-surface z-50 flex flex-col items-center justify-center px-6 text-center">
+  <span class="material-symbols-outlined text-primary text-[64px]">check_circle</span>
+  <h2 class="text-xl font-semibold mt-4">Order Received!</h2>
+  <p class="text-sm text-on-surface-variant mt-2 max-w-xs">We'll confirm your order on WhatsApp shortly. Thank you for shopping with Kitchly.</p>
+  <a href="index.html" class="mt-6 px-6 py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm">Continue Shopping</a>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script>
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const productId = params.get("product_id");
+  let qty = parseInt(params.get("qty") || "1", 10);
+
+  let product = null;
+  let allCities = [];
+  let selectedCityId = null;
+  let selectedAreaId = null;
+
+  function formatPKR(n) { return "Rs. " + Math.round(n).toLocaleString("en-PK"); }
+  function computeFinalPrice(p) { return p.price * (1 - (p.discount || 0) / 100); }
+
+  document.getElementById("backLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    if (productId) window.location.href = `product.html?id=${productId}`;
+    else window.location.href = "index.html";
+  });
+
+  async function init() {
+    if (!productId) { showError(); return; }
+
+    const { data, error } = await supabaseClient
+      .from("products")
+      .select("*, product_images(image_url, sort_order)")
+      .eq("id", productId)
+      .single();
+
+    if (error || !data) { showError(); return; }
+    product = data;
+    if (qty < 1) qty = 1;
+    if (qty > product.max_order_quantity) qty = product.max_order_quantity;
+
+    await loadCities();
+    render();
+  }
+
+  function showError() {
+    document.getElementById("loadingState").classList.add("hidden");
+    document.getElementById("errorState").classList.remove("hidden");
+  }
+
+  async function loadCities() {
+    const { data, error } = await supabaseClient.from("cities").select("id, name").order("name");
+    if (!error && data) allCities = data;
+    const citySelect = document.getElementById("citySelect");
+    allCities.forEach(city => {
+      const opt = document.createElement("option");
+      opt.value = city.id;
+      opt.textContent = city.name;
+      citySelect.appendChild(opt);
+    });
+  }
+
+  async function onCityChange() {
+    const cityId = document.getElementById("citySelect").value;
+    selectedCityId = cityId || null;
+    selectedAreaId = null;
+
+    const areaSelect = document.getElementById("areaSelect");
+    areaSelect.innerHTML = '<option value="">Loading areas…</option>';
+    areaSelect.disabled = true;
+
+    if (!cityId) {
+      areaSelect.innerHTML = '<option value="">Select city first</option>';
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("areas")
+      .select("id, name")
+      .eq("city_id", cityId)
+      .order("name");
+
+    areaSelect.innerHTML = "";
+    if (error || !data || data.length === 0) {
+      areaSelect.innerHTML = '<option value="">No areas listed — use full address below</option>';
+      areaSelect.disabled = false;
+      return;
+    }
+
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Select area";
+    areaSelect.appendChild(defaultOpt);
+
+    data.forEach(area => {
+      const opt = document.createElement("option");
+      opt.value = area.id;
+      opt.textContent = area.name;
+      areaSelect.appendChild(opt);
+    });
+    areaSelect.disabled = false;
+  }
+  document.getElementById("citySelect").addEventListener("change", onCityChange);
+  document.getElementById("areaSelect").addEventListener("change", (e) => {
+    selectedAreaId = e.target.value || null;
+  });
+
+  function render() {
+    document.getElementById("loadingState").classList.add("hidden");
+    document.getElementById("checkoutContent").classList.remove("hidden");
+
+    const img = (product.product_images || []).sort((a,b) => a.sort_order - b.sort_order)[0];
+    document.getElementById("summaryImage").src = img ? img.image_url : "https://via.placeholder.com/100";
+    document.getElementById("summaryTitle").textContent = product.title;
+
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const finalPrice = computeFinalPrice(product);
+    const linePrice = finalPrice * qty;
+    const total = linePrice + (product.delivery_price || 0);
+
+    document.getElementById("qtyValue").textContent = qty;
+    document.getElementById("summaryLinePrice").textContent = formatPKR(linePrice);
+    document.getElementById("subtotalValue").textContent = formatPKR(linePrice);
+    document.getElementById("deliveryValue").textContent = product.delivery_price > 0 ? formatPKR(product.delivery_price) : "Free";
+    document.getElementById("totalValue").textContent = formatPKR(total);
+    document.getElementById("deliveryTimeNote").textContent =
+      `Estimated delivery: ${product.delivery_time_estimate || "2-4 business days"}`;
+  }
+
+  document.getElementById("qtyMinus").addEventListener("click", () => {
+    if (qty > 1) { qty--; updateSummary(); }
+  });
+  document.getElementById("qtyPlus").addEventListener("click", () => {
+    if (qty < product.max_order_quantity) { qty++; updateSummary(); }
+  });
+
+  function showFormError(msg) {
+    const el = document.getElementById("formError");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function clearFormError() {
+    document.getElementById("formError").classList.add("hidden");
+  }
+
+  document.getElementById("completeOrderBtn").addEventListener("click", async () => {
+    clearFormError();
+
+    const name = document.getElementById("nameInput").value.trim();
+    const whatsapp = document.getElementById("whatsappInput").value.trim();
+    const address = document.getElementById("addressInput").value.trim();
+    const landmark = document.getElementById("landmarkInput").value.trim();
+
+    if (!name) return showFormError("Please enter your full name.");
+    if (!whatsapp) return showFormError("Please enter your WhatsApp number.");
+    if (!selectedCityId) return showFormError("Please select your city.");
+    if (!address) return showFormError("Please enter your full address.");
+
+    const finalPrice = computeFinalPrice(product);
+    const totalPrice = finalPrice * qty + (product.delivery_price || 0);
+
+    const btn = document.getElementById("completeOrderBtn");
+    btn.disabled = true;
+    document.getElementById("completeOrderText").textContent = "Placing order…";
+
+    const { error } = await supabaseClient.from("orders").insert({
+      product_id: product.id,
+      customer_name: name,
+      whatsapp_number: whatsapp,
+      city_id: selectedCityId,
+      area_id: selectedAreaId,
+      full_address: address,
+      landmark: landmark || null,
+      quantity: qty,
+      total_price: totalPrice,
+      delivery_price: product.delivery_price || 0,
+      status: "pending"
+    });
+
+    if (error) {
+      console.error(error);
+      showFormError("Something went wrong placing your order. Please try again.");
+      btn.disabled = false;
+      document.getElementById("completeOrderText").textContent = "Complete Order";
+      return;
+    }
+
+    document.getElementById("successState").classList.remove("hidden");
+  });
+
+  init();
+})();
+</script>
+
+</body>
+</html>

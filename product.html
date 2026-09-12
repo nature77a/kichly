@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>Product — Kitchly</title>
+
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          surface: "#fbf9f6",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-low": "#f5f3f0",
+          "surface-container": "#efeeea",
+          "on-surface": "#1b1c1a",
+          "on-surface-variant": "#59413c",
+          outline: "#8c716b",
+          "outline-variant": "#e0bfb8",
+          primary: "#a93119",
+          "on-primary": "#ffffff",
+          secondary: "#566250",
+          "secondary-container": "#dae7d0",
+          "on-secondary-container": "#5c6856"
+        },
+        fontFamily: { sans: ["Plus Jakarta Sans", "sans-serif"] }
+      }
+    }
+  };
+</script>
+
+<style>
+  html, body { margin:0; padding:0; background:#fbf9f6; font-family:"Plus Jakarta Sans", sans-serif; }
+  ::-webkit-scrollbar { display:none; }
+  .accordion-body { max-height:0; overflow:hidden; transition:max-height .3s ease; }
+  .accordion-body.open { max-height: 300px; }
+  .gallery-thumb.active { border-color:#a93119; }
+</style>
+</head>
+
+<body class="bg-surface text-on-surface min-h-screen pb-28">
+
+<!-- Header -->
+<header class="sticky top-0 z-40 bg-surface/90 backdrop-blur-xl h-16 flex items-center px-4 gap-3 border-b border-outline-variant/30">
+  <a href="index.html" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container">
+    <span class="material-symbols-outlined">arrow_back</span>
+  </a>
+  <span class="font-semibold text-lg truncate" id="headerTitle">Loading…</span>
+</header>
+
+<div id="loadingState" class="px-4 py-10 text-center text-on-surface-variant">Loading product…</div>
+<div id="notFoundState" class="hidden px-4 py-20 text-center">
+  <p class="font-semibold">Product not found</p>
+  <a href="index.html" class="text-primary text-sm underline">Back to catalog</a>
+</div>
+
+<main id="productContent" class="hidden max-w-6xl mx-auto lg:grid lg:grid-cols-2 lg:gap-10 lg:px-8 lg:pt-8">
+
+  <!-- Gallery -->
+  <div>
+    <div class="relative w-full aspect-square bg-surface-container-low overflow-hidden lg:rounded-2xl" id="mainMediaWrap">
+      <!-- main image/video injected here -->
+    </div>
+    <div id="thumbStrip" class="flex gap-2 px-4 py-3 overflow-x-auto lg:px-0"></div>
+  </div>
+
+  <!-- Details -->
+  <div class="px-4 lg:px-0">
+    <h1 id="productTitle" class="text-xl lg:text-3xl font-semibold tracking-tight mt-2"></h1>
+
+    <div class="flex items-baseline gap-2 mt-3">
+      <span id="finalPrice" class="text-2xl font-bold text-primary"></span>
+      <span id="originalPrice" class="text-sm text-outline line-through"></span>
+      <span id="saveBadge" class="hidden text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded-md"></span>
+    </div>
+
+    <!-- Delivery info line -->
+    <div class="mt-3 flex items-center gap-2 text-sm bg-secondary-container/40 text-on-secondary-container rounded-lg px-3 py-2 w-fit">
+      <span class="material-symbols-outlined text-[18px]">local_shipping</span>
+      <span id="deliveryLine"></span>
+    </div>
+
+    <!-- Quantity -->
+    <div class="mt-5 flex items-center gap-4">
+      <span class="text-sm font-semibold">Quantity</span>
+      <div class="flex items-center border border-outline-variant rounded-xl overflow-hidden">
+        <button id="qtyMinus" class="w-10 h-10 flex items-center justify-center text-lg">−</button>
+        <span id="qtyValue" class="w-10 text-center font-semibold">1</span>
+        <button id="qtyPlus" class="w-10 h-10 flex items-center justify-center text-lg">+</button>
+      </div>
+      <span id="maxQtyNote" class="text-xs text-on-surface-variant"></span>
+    </div>
+
+    <!-- Description -->
+    <div class="mt-6 p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/40">
+      <p id="descriptionText" class="text-sm leading-relaxed text-on-surface-variant"></p>
+    </div>
+
+    <!-- Specifications (only if present) -->
+    <div id="specsSection" class="hidden mt-6">
+      <h3 class="font-semibold text-sm mb-2">Specifications</h3>
+      <div id="specsList" class="rounded-xl border border-outline-variant/40 overflow-hidden divide-y divide-outline-variant/30"></div>
+    </div>
+
+    <!-- FAQs -->
+    <div id="faqSection" class="hidden mt-6">
+      <h3 class="font-semibold text-sm mb-2">Frequently Asked Questions</h3>
+      <div id="faqList" class="flex flex-col gap-2"></div>
+    </div>
+
+    <!-- Trust boxes -->
+    <div class="grid grid-cols-2 gap-3 mt-6">
+      <div class="rounded-xl border border-outline-variant/40 p-3 flex flex-col items-center text-center gap-1">
+        <span class="material-symbols-outlined text-primary text-[26px]">payments</span>
+        <p class="text-xs font-semibold">Cash on Delivery</p>
+        <p class="text-[11px] text-on-surface-variant">Pay when it arrives</p>
+      </div>
+      <div class="rounded-xl border border-outline-variant/40 p-3 flex flex-col items-center text-center gap-1">
+        <span class="material-symbols-outlined text-primary text-[26px]">local_shipping</span>
+        <p class="text-xs font-semibold">Nationwide Delivery</p>
+        <p class="text-[11px] text-on-surface-variant" id="trustDeliveryTime">All over Pakistan</p>
+      </div>
+      <div class="rounded-xl border border-outline-variant/40 p-3 flex flex-col items-center text-center gap-1">
+        <span class="material-symbols-outlined text-primary text-[26px]">verified</span>
+        <p class="text-xs font-semibold">Verified Quality</p>
+        <p class="text-[11px] text-on-surface-variant">Genuine products</p>
+      </div>
+      <div class="rounded-xl border border-outline-variant/40 p-3 flex flex-col items-center text-center gap-1">
+        <span class="material-symbols-outlined text-primary text-[26px]">replay</span>
+        <p class="text-xs font-semibold">7-Day Replacement</p>
+        <p class="text-[11px] text-on-surface-variant">If damaged or wrong item</p>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Related Products -->
+<section class="max-w-6xl mx-auto px-4 lg:px-8 mt-10">
+  <h3 id="relatedTitle" class="hidden font-semibold text-lg mb-3">You may also like</h3>
+  <div id="relatedGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"></div>
+</section>
+
+<!-- Sticky Bottom Bar -->
+<div id="stickyBar" class="hidden fixed bottom-0 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant/40 px-4 py-3 z-40">
+  <div class="max-w-6xl mx-auto flex items-center gap-3">
+    <div class="flex-1">
+      <p class="text-[11px] text-on-surface-variant">Total</p>
+      <p id="stickyTotal" class="font-bold text-lg text-primary"></p>
+    </div>
+    <button id="addToCartBtn" class="px-5 py-3 rounded-xl border border-outline-variant font-semibold text-sm">Add to Cart</button>
+    <button id="buyNowBtn" class="flex-1 py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm">Buy Now</button>
+  </div>
+</div>
+
+<div id="cartToast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-sm px-4 py-2 rounded-full shadow-lg z-50">Added to cart</div>
+
+<script src="js/supabase-config.js"></script>
+<script>
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const productId = params.get("id");
+
+  let product = null;
+  let qty = 1;
+  let mediaItems = []; // [{type:'image'|'video', url}]
+  let activeMediaIndex = 0;
+
+  function formatPKR(n) { return "Rs. " + Math.round(n).toLocaleString("en-PK"); }
+  function computeFinalPrice(p) { return p.price * (1 - (p.discount || 0) / 100); }
+
+  async function init() {
+    if (!productId) { showNotFound(); return; }
+
+    const { data, error } = await supabaseClient
+      .from("products")
+      .select("*, product_images(image_url, sort_order), product_faqs(question, answer), product_specifications(label, value, sort_order)")
+      .eq("id", productId)
+      .single();
+
+    if (error || !data) { showNotFound(); return; }
+    product = data;
+    render();
+  }
+
+  function showNotFound() {
+    document.getElementById("loadingState").classList.add("hidden");
+    document.getElementById("notFoundState").classList.remove("hidden");
+  }
+
+  function render() {
+    document.getElementById("loadingState").classList.add("hidden");
+    document.getElementById("productContent").classList.remove("hidden");
+    document.getElementById("stickyBar").classList.remove("hidden");
+    document.getElementById("headerTitle").textContent = product.title;
+    document.getElementById("productTitle").textContent = product.title;
+
+    // Media
+    const images = (product.product_images || [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(img => ({ type: "image", url: img.image_url }));
+    mediaItems = images;
+    if (product.video_url) mediaItems.push({ type: "video", url: product.video_url });
+    if (mediaItems.length === 0) mediaItems = [{ type: "image", url: "https://via.placeholder.com/600x600.png?text=No+Image" }];
+    renderMedia();
+    renderThumbs();
+
+    // Price
+    const finalPrice = computeFinalPrice(product);
+    document.getElementById("finalPrice").textContent = formatPKR(finalPrice);
+    if (product.discount > 0) {
+      document.getElementById("originalPrice").textContent = formatPKR(product.price);
+      const saveBadge = document.getElementById("saveBadge");
+      saveBadge.textContent = `Save ${formatPKR(product.price - finalPrice)}`;
+      saveBadge.classList.remove("hidden");
+    }
+
+    // Delivery
+    const deliveryTimeText = product.delivery_time_estimate || "2-4 business days";
+    const deliveryLineText = product.delivery_price > 0
+      ? `Delivery: ${formatPKR(product.delivery_price)} • ${deliveryTimeText}`
+      : `Free Delivery • ${deliveryTimeText}`;
+    document.getElementById("deliveryLine").textContent = deliveryLineText;
+    document.getElementById("trustDeliveryTime").textContent = deliveryTimeText;
+
+    // Quantity
+    document.getElementById("maxQtyNote").textContent = `Max ${product.max_order_quantity} per order`;
+
+    // Description
+    document.getElementById("descriptionText").textContent = product.long_description || "";
+
+    // Specifications
+    if (product.product_specifications && product.product_specifications.length > 0) {
+      const specs = [...product.product_specifications].sort((a, b) => a.sort_order - b.sort_order);
+      const list = document.getElementById("specsList");
+      list.innerHTML = specs.map(s => `
+        <div class="flex justify-between px-4 py-3 text-sm bg-surface-container-lowest">
+          <span class="text-on-surface-variant">${s.label}</span>
+          <span class="font-medium">${s.value}</span>
+        </div>
+      `).join("");
+      document.getElementById("specsSection").classList.remove("hidden");
+    }
+
+    // FAQs
+    if (product.product_faqs && product.product_faqs.length > 0) {
+      const faqList = document.getElementById("faqList");
+      faqList.innerHTML = "";
+      product.product_faqs.forEach((faq, i) => {
+        const item = document.createElement("div");
+        item.className = "border border-outline-variant/40 rounded-xl overflow-hidden";
+        item.innerHTML = `
+          <button class="faq-toggle w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium">
+            ${faq.question}
+            <span class="material-symbols-outlined text-[20px] transition-transform faq-icon">expand_more</span>
+          </button>
+          <div class="accordion-body px-4 text-sm text-on-surface-variant">
+            <p class="pb-3">${faq.answer}</p>
+          </div>
+        `;
+        faqList.appendChild(item);
+      });
+      document.getElementById("faqSection").classList.remove("hidden");
+      wireFaqToggles();
+    }
+
+    updateStickyTotal();
+    loadRelated();
+  }
+
+  function renderMedia() {
+    const wrap = document.getElementById("mainMediaWrap");
+    const item = mediaItems[activeMediaIndex];
+    if (item.type === "video") {
+      wrap.innerHTML = `<video src="${item.url}" class="w-full h-full object-cover" controls playsinline></video>`;
+    } else {
+      wrap.innerHTML = `<img src="${item.url}" class="w-full h-full object-cover" alt="Product image"/>`;
+    }
+  }
+
+  function renderThumbs() {
+    const strip = document.getElementById("thumbStrip");
+    strip.innerHTML = "";
+    mediaItems.forEach((item, i) => {
+      const thumb = document.createElement("button");
+      thumb.className = "gallery-thumb w-16 h-16 shrink-0 rounded-lg overflow-hidden border-2 border-transparent" + (i === activeMediaIndex ? " active" : "");
+      thumb.innerHTML = item.type === "video"
+        ? `<div class="w-full h-full bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined">play_circle</span></div>`
+        : `<img src="${item.url}" class="w-full h-full object-cover"/>`;
+      thumb.addEventListener("click", () => {
+        activeMediaIndex = i;
+        renderMedia();
+        renderThumbs();
+      });
+      strip.appendChild(thumb);
+    });
+  }
+
+  function wireFaqToggles() {
+    document.querySelectorAll(".faq-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const body = btn.nextElementSibling;
+        const icon = btn.querySelector(".faq-icon");
+        const isOpen = body.classList.contains("open");
+        document.querySelectorAll(".accordion-body").forEach(b => b.classList.remove("open"));
+        document.querySelectorAll(".faq-icon").forEach(i => i.style.transform = "rotate(0deg)");
+        if (!isOpen) {
+          body.classList.add("open");
+          icon.style.transform = "rotate(180deg)";
+        }
+      });
+    });
+  }
+
+  function updateStickyTotal() {
+    const finalPrice = computeFinalPrice(product);
+    const total = finalPrice * qty + (product.delivery_price || 0);
+    document.getElementById("stickyTotal").textContent = formatPKR(total);
+    document.getElementById("qtyValue").textContent = qty;
+  }
+
+  document.getElementById("qtyMinus").addEventListener("click", () => {
+    if (qty > 1) { qty--; updateStickyTotal(); }
+  });
+  document.getElementById("qtyPlus").addEventListener("click", () => {
+    if (product && qty < product.max_order_quantity) { qty++; updateStickyTotal(); }
+  });
+
+  document.getElementById("buyNowBtn").addEventListener("click", () => {
+    window.location.href = `checkout.html?product_id=${product.id}&qty=${qty}`;
+  });
+
+  document.getElementById("addToCartBtn").addEventListener("click", () => {
+    const toast = document.getElementById("cartToast");
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 1500);
+  });
+
+  async function loadRelated() {
+    if (!product.category) return;
+    const { data, error } = await supabaseClient
+      .from("products")
+      .select("*, product_images(image_url, sort_order)")
+      .eq("category", product.category)
+      .neq("id", product.id)
+      .limit(4);
+
+    if (error || !data || data.length === 0) return;
+
+    document.getElementById("relatedTitle").classList.remove("hidden");
+    const grid = document.getElementById("relatedGrid");
+    grid.innerHTML = "";
+    data.forEach(p => {
+      const finalPrice = computeFinalPrice(p);
+      const img = (p.product_images || []).sort((a,b) => a.sort_order - b.sort_order)[0];
+      const card = document.createElement("a");
+      card.href = `product.html?id=${p.id}`;
+      card.className = "flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/40";
+      card.innerHTML = `
+        <div class="relative w-full aspect-square bg-surface-container-low overflow-hidden">
+          ${p.discount > 0 ? `<span class="absolute top-2 left-2 bg-primary text-on-primary text-[10px] font-bold px-2 py-1 rounded-md">${Math.round(p.discount)}% OFF</span>` : ""}
+          <img src="${img ? img.image_url : 'https://via.placeholder.com/300'}" class="w-full h-full object-cover"/>
+        </div>
+        <div class="p-2.5">
+          <h4 class="text-sm font-semibold line-clamp-1">${p.title}</h4>
+          <span class="text-sm font-bold text-primary">${formatPKR(finalPrice)}</span>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
